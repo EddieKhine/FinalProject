@@ -7,11 +7,16 @@ const UserSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    match: [/.+@.+\..+/, 'Please enter a valid email address'],
+  },
   password: {
     type: String,
     required: true,
   },
-  // Add additional fields as necessary
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);

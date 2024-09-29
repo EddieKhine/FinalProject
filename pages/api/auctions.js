@@ -1,63 +1,30 @@
 import dbConnect from '../../lib/db';
 import Auction from '../../models/Auction';
-import multer from 'multer';
+import Bid from '../../models/Bid';
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, './public/uploads'); // Store images in public/uploads folder
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-
-const upload = multer({ storage });
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-// API handler for auctions
 export default async function handler(req, res) {
-  await dbConnect();
+  await dbConnect(); // Connect to the database
 
   if (req.method === 'GET') {
     try {
-      const auctions = await Auction.find({}).populate('creator', 'username'); // Get auctions and populate creator
-      res.status(200).json(auctions);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Failed to fetch auctions' });
-    }
-  } else if (req.method === 'POST') {
-    upload.single('photo')(req, res, async (err) => {
-      if (err) return res.status(500).json({ error: err.message });
+      // Fetch only active auctions
+      const auctions = await Auction.find({ isActive: true })
+        .populate('creator', 'username') // Populate creator's username
+        .lean(); // Convert Mongoose document to plain JavaScript object
 
-      const { name, description, startTime, endTime } = req.body;
-      const photo = `/uploads/${req.file.filename}`; // Set the photo URL
-      const creator = req.body.username; // Get the username from the request body
-
-      try {
-        const auction = new Auction({
-          name,
-          description,
-          photo,
-          startTime: new Date(startTime),
-          endTime: new Date(endTime),
-          creator, // Use username for creator
-        });
-        await auction.save();
-        res.status(201).json(auction);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to create auction' });
+      // Fetch bids for each auction and attach them to the auction object
+      for (let auction of auctions) {
+        const bids = await Bid.find({ auction: auction._id }).populate('bidder', 'username');
+        auction.bids = bids; // Attach bids to the auction
       }
-    });
+
+      res.status(200).json(auctions); // Return the fetched auctions with bids
+    } catch (error) {
+      console.error('Failed to fetch auctions:', error);
+      res.status(500).json({ message: 'Failed to fetch auctions' }); // Return error
+    }
   } else {
-    res.setHeader('Allow', ['GET', 'POST']);
+    res.setHeader('Allow', ['GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

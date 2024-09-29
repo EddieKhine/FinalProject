@@ -14,11 +14,16 @@
   }
 }
 
+/* global.css */
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);/* Light purple background color */
+  color: #4a148c; /* Dark purple text color */
+  font-family: Arial, sans-serif; /* Optional: Set a default font */
+  margin: 0; /* Remove default margin */
+  padding: 0; /* Remove default padding */
+  min-height: 100vh; /* Ensure body takes full height */
 }
+
 
 @layer utilities {
   .text-balance {
