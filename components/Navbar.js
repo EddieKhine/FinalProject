@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Popover } from '@headlessui/react';
-import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 
 const Navbar = () => {
-  const { data: session } = useSession();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState(null);
@@ -16,34 +14,42 @@ const Navbar = () => {
     profilePicture: '',
   });
 
+  // Fetch user data from the backend API
   useEffect(() => {
     const fetchUserData = async () => {
-      if (session) {
-        try {
-          const response = await fetch('/api/user');
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-            setUserData({
-              username: userData.username || '',
-              email: userData.email || '',
-              password: '', // Leave blank for security
-              profilePicture: userData.profilePicture || '',
-            });
-          } else {
-            console.error('Failed to fetch user data');
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
+      try {
+        const response = await fetch('/api/user', {
+          headers: {
+            'Content-Type': 'application/json',
+            id: '66f9649fe0c1e8496606a572', // Assuming user ID is available in localStorage or another place
+            email: 'user1@gmail.com',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data);
+          setUserData({
+            username: data.username || '',
+            email: data.email || '',
+            password: '', // Leave blank for security
+            profilePicture: data.profilePicture || '',
+          });
+        } else {
+          console.error('Failed to fetch user data');
         }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
       }
     };
 
     fetchUserData();
-  }, [session]);
+  }, []);
 
   const handleLogout = async () => {
-    signOut();
+    // Clear user data and redirect to home
+    localStorage.removeItem('user');
+    setUser(null);
     router.push('/');
   };
 
@@ -60,10 +66,41 @@ const Navbar = () => {
     setIsModalOpen(false);
   };
 
-  const handleProfileUpdate = (e) => {
+  const handleProfileUpdate = async (e) => {
     e.preventDefault();
-    // Perform profile update logic here
-    setIsModalOpen(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('username', userData.username);
+      formData.append('email', userData.email);
+      if (userData.password) {
+        formData.append('password', userData.password); // Only send password if it's updated
+      }
+      if (userData.profilePicture) {
+        formData.append('profilePicture', userData.profilePicture); // Profile picture upload
+      }
+
+      const response = await fetch('/api/updateUserData', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        console.log('Profile updated successfully:', updatedUser);
+        setUserData({
+          ...userData,
+          username: updatedUser.user.username,
+          email: updatedUser.user.email,
+          profilePicture: updatedUser.user.profilePicture,
+        });
+        setIsModalOpen(false);
+      } else {
+        console.error('Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
   };
 
   return (
@@ -83,13 +120,13 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center ml-auto">
-          {session && user ? (
+          {user ? (
             <>
               <button
                 onClick={handleModalOpen}
                 className="bg-green-600 text-white w-12 h-12 text-xl rounded-full hover:bg-green-700 flex items-center justify-center mr-4"
               >
-                {user.username.charAt(0)}
+                {userData.username.charAt(0).toUpperCase()}
               </button>
 
               <Popover className="relative">

@@ -1,22 +1,21 @@
 // pages/_app.js
-import { SessionProvider } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Navbar from '../components/Navbar';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import '../app/globals.css'
+import '../app/globals.css';
 
-
-function MyApp({ Component, pageProps: { session, ...pageProps } }) {
+function MyApp({ Component, pageProps }) {
   const router = useRouter();
 
-  // Check if the current route is the login or register page
-  const isAuthPage = router.pathname === '/login' || router.pathname === '/register';
+  // Check for routes where you don't want the Navbar to appear
+  const authRoutes = ['/login', '/register'];
+  const isAuthPage = authRoutes.some((route) => router.pathname.startsWith(route));
 
   return (
-    <SessionProvider session={session}>
-      {!isAuthPage && <Navbar />} {/* Render Navbar only if not on login or register page */}
+    <>
+      {!isAuthPage && <Navbar />}
       <Component {...pageProps} />
-    </SessionProvider>
+    </>
   );
 }
 

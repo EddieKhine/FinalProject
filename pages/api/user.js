@@ -1,18 +1,19 @@
 import dbConnect from '../../lib/db';
 import User from '../../models/User';
-import { getSession } from 'next-auth/react';
 
 export default async function handler(req, res) {
   await dbConnect();
 
-  const session = await getSession({ req });
+  // Assuming the client sends the user object in the headers
+  const { id, email } = req.headers; 
 
-  if (!session) {
-    return res.status(401).json({ message: 'Unauthorized' });
+  if (!id || !email) {
+    return res.status(401).json({ message: 'Unauthorized: No user data provided' });
   }
 
   try {
-    const user = await User.findOne({ email: session.user.email });
+    // Find the user by both ID and email to ensure it's correct
+    const user = await User.findOne({ _id: id, email });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
