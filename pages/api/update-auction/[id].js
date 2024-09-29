@@ -1,69 +1,81 @@
+import fs from 'fs';
+import path from 'path';
+import formidable from 'formidable';
 import dbConnect from '../../../lib/db';
 import Auction from '../../../models/Auction';
-import mongoose from 'mongoose';
+
+export const config = {
+  api: {
+    bodyParser: false, // Disable Next.js's default body parser
+  },
+};
+
+// Helper function to parse form data including files
+const parseForm = (req) => {
+  return new Promise((resolve, reject) => {
+    const form = formidable({
+      uploadDir: path.join(process.cwd(), '/public/uploads'), // Specify the directory for auction image uploads
+      keepExtensions: true,
+      maxFileSize: 5 * 1024 * 1024, // 5MB limit for the file
+    });
+
+    form.parse(req, (err, fields, files) => {
+      if (err) reject(err);
+      resolve({ fields, files });
+    });
+  });
+};
 
 export default async function handler(req, res) {
-  await dbConnect(); // Ensure database connection
-  const { id } = req.query;
+  await dbConnect();
 
-  // Check if the `id` is a valid MongoDB ObjectId
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    console.log('Invalid auction ID:', id); // Log invalid ID
-    return res.status(400).json({ message: 'Invalid auction ID' });
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
   }
 
-  if (req.method === 'PUT') {
-    const { name, description, startAuction, endAuction } = req.body;
+  try {
+    const { fields, files } = await parseForm(req); // Parse the form data
+    let { auctionId, name, description, startAuction, endAuction } = fields;
 
-    // Log incoming data
-    console.log('Incoming data:', { name, description, startAuction, endAuction });
+    // Ensure that fields are parsed as strings and not arrays
+    name = Array.isArray(name) ? name[0] : name;
+    description = Array.isArray(description) ? description[0] : description;
+    startAuction = Array.isArray(startAuction) ? startAuction[0] : startAuction;
+    endAuction = Array.isArray(endAuction) ? endAuction[0] : endAuction;
 
-    // Validate incoming data
-    if (!name || !description || !startAuction || !endAuction) {
-      console.log('Missing fields in request:', { name, description, startAuction, endAuction }); // Log missing fields
-      return res.status(400).json({ message: 'Please provide all required fields.' });
+    // Validate required fields
+    if (!auctionId || !name || !description || !startAuction || !endAuction) {
+      return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
-    // Parse dates correctly
-    const startAuctionDate = new Date(startAuction);
-    const endAuctionDate = new Date(endAuction);
+    // Construct the update object with the auction details
+    const updateData = {
+      name,
+      description,
+      startAuction: new Date(startAuction),
+      endAuction: new Date(endAuction),
+    };
 
-    // Log parsed dates
-    console.log('Parsed start date:', startAuctionDate);
-    console.log('Parsed end date:', endAuctionDate);
-
-    // Validate date range
-    if (startAuctionDate >= endAuctionDate) {
-      console.log('Invalid date range:', startAuctionDate, endAuctionDate); // Log date issue
-      return res.status(400).json({ message: 'End time must be after start time.' });
+    // Check if a new auction image was uploaded before updating the `imagePath`
+    if (files.auctionImage && files.auctionImage.newFilename) {
+      const auctionImagePath = `/uploads/${files.auctionImage.newFilename}`;
+      updateData.imagePath = auctionImagePath; // Only update the image path if an image was uploaded
+    } else {
+      // Do not update `imagePath` if no new image was uploaded
+      console.log('No new image uploaded, keeping the existing image path');
     }
 
-    try {
-      // Update the auction in the database
-      const updatedAuction = await Auction.findByIdAndUpdate(
-        id,
-        { 
-          name, 
-          description, 
-          startAuction: startAuctionDate, 
-          endAuction: endAuctionDate 
-        },
-        { new: true, runValidators: true } // Return the updated document and run schema validators
-      );
+    // Update the auction in the database
+    const updatedAuction = await Auction.findByIdAndUpdate(auctionId, updateData, { new: true });
 
-      if (!updatedAuction) {
-        console.log('Auction not found:', id); // Log not found issue
-        return res.status(404).json({ message: 'Auction not found' });
-      }
-
-      console.log('Auction updated successfully:', updatedAuction); // Log successful update
-      res.status(200).json(updatedAuction);
-    } catch (error) {
-      console.error('Error updating auction:', error.message); // Log error
-      res.status(500).json({ message: 'Error updating auction', error: error.message });
+    if (!updatedAuction) {
+      return res.status(404).json({ message: 'Auction not found' });
     }
-  } else {
-    res.setHeader('Allow', ['PUT']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    res.status(200).json(updatedAuction);
+  } catch (error) {
+    console.error('Error updating auction:', error);
+    res.status(500).json({ message: 'Error updating auction' });
   }
 }

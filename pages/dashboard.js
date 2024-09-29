@@ -1,217 +1,350 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useState, useEffect } from 'react';
 
 const Dashboard = () => {
   const [auctions, setAuctions] = useState([]);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [bidMessage, setBidMessage] = useState('');
-
-  // State for bid inputs
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedAuction, setSelectedAuction] = useState(null);
   const [itemName, setItemName] = useState('');
   const [itemDescription, setItemDescription] = useState('');
+  const [itemImage, setItemImage] = useState(null);
+  const [bidMessage, setBidMessage] = useState('');
 
-  // State for search query
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Retrieve user data from local storage
+  // Fetch user ID from local storage
   const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user')) : null;
   const userId = user ? user.id : null;
-  const router = useRouter();
 
+  // Fetch auctions from dashboard API
   useEffect(() => {
-    // Redirect to login if user ID is not available
-    if (!userId) {
-      router.push('/');
-    }
-  }, [userId, router]);
-
-  const fetchData = async () => {
-    try {
-      // Include userId in the query parameters to filter out inactive auctions
-      const response = await fetch(`/api/dashboard?userId=${userId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAuctions(data.filter(auction => auction.isActive)); // Set the auctions data and filter for active ones
-      } else {
-        throw new Error('Failed to fetch auctions');
+    const fetchAuctions = async () => {
+      if (!userId) {
+        setError('User ID is missing');
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      setErrorMessage(error.message); // Set the error message
-    }
-  };
 
-  useEffect(() => {
-    // Fetch auctions only if the user is authenticated
-    if (userId) {
-      fetchData();
-    }
+      try {
+        const response = await fetch(`/api/dashboard?userId=${userId}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch auctions from dashboard');
+        }
+
+        const data = await response.json();
+        setAuctions(data); // Set the auctions returned by the API
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching auctions:', error);
+        setError(error.message);
+        setLoading(false);
+      }
+    };
+
+    fetchAuctions();
   }, [userId]);
 
-  // Function to handle bid submission
-  const handleBid = async (auctionId) => {
+  const handleOpenModal = (auction) => {
+    setSelectedAuction(auction);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setItemName('');
+    setItemDescription('');
+    setItemImage(null);
+    setBidMessage('');
+  };
+
+  const handleImageChange = (e) => {
+    setItemImage(e.target.files[0]);
+  };
+
+  const handleBidSubmit = async () => {
+    if (!itemName || !itemDescription) {
+      setBidMessage('Please provide all the required fields.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('auctionId', selectedAuction._id);
+    formData.append('bidderId', userId); // Use userId from local storage
+    formData.append('itemName', itemName);
+    formData.append('itemDescription', itemDescription);
+    if (itemImage) {
+      formData.append('image', itemImage);
+    }
+
     try {
-      const response = await fetch('/api/bid', {
+      const response = await fetch('/api/add-bid', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          auctionId,
-          userId,
-          itemName,
-          itemDescription,
-        }),
+        body: formData,
       });
 
       if (response.ok) {
         setBidMessage('Bid placed successfully!');
-        setItemName(''); // Clear item name field
-        setItemDescription(''); // Clear item description field
-        fetchData(); // Fetch updated auctions to show the new bid
+        setTimeout(() => {
+          handleCloseModal();
+        }, 2000);
       } else {
-        throw new Error('Failed to place bid');
+        const data = await response.json();
+        setBidMessage(data.message || 'Error placing bid.');
       }
     } catch (error) {
-      setBidMessage(error.message);
+      setBidMessage('Error placing bid.');
     }
   };
 
-  // Filter auctions based on search query
-  const filteredAuctions = auctions.filter(auction =>
-    auction.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error}</p>;
 
   return (
-    <div className='container'>
-      {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
+    <div className="dashboard-container">
+      <h1 className='title'>Active Auctions</h1>
 
-      {/* Search Bar */}
-      <div className="search-bar">
-        <input
-          type="text"
-          placeholder="Search Items by name..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)} // Update search query state
-          className="search-input"
-        />
+      {/* Display fetched auctions */}
+      <div className="grid-container">
+        {auctions.length > 0 ? (
+          auctions.map((auction) => (
+            <div key={auction._id} className="grid-item">
+              <h2 className="auction-title">{auction.name}</h2>
+              <p className="auction-description">{auction.description}</p>
+              <p><strong>Start:</strong> {new Date(auction.startAuction).toLocaleString()}</p>
+              <p><strong>End:</strong> {new Date(auction.endAuction).toLocaleString()}</p>
+              <p><strong>Creator:</strong> {auction.creator.username}</p>
+
+              {/* Display the auction image if it exists */}
+              {auction.imagePath && (
+                <img
+                  src={auction.imagePath}
+                  alt={auction.name}
+                  className="auction-image"
+                />
+              )}
+
+              {/* Place Bid Button */}
+              <button className="primary-button" onClick={() => handleOpenModal(auction)}>
+                Place Bid
+              </button>
+
+              {/* Display auction bids */}
+              {auction.bids && auction.bids.length > 0 ? (
+                <div className="bids-section">
+                  <h3>Bids</h3>
+                  {auction.bids.map((bid) => (
+                    <div key={bid._id} className="bid">
+                      <p><strong>Bidder:</strong> {bid.bidder.username}</p>
+                      <p><strong>Item:</strong> {bid.itemName}</p>
+                      <p><strong>Description:</strong> {bid.itemDescription}</p>
+
+                      {bid.itemImage && (
+                        <img
+                          src={bid.itemImage.startsWith('/uploads') ? bid.itemImage : `/uploads/bids/${bid.itemImage}`}
+                          alt={bid.itemName}
+                          className="bid-image"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>No bids yet</p>
+              )}
+            </div>
+          ))
+        ) : (
+          <p>No active auctions available</p>
+        )}
       </div>
 
-      {filteredAuctions.length > 0 ? (
-        filteredAuctions.map((auction) => (
-          <div key={auction._id} className="auction">
-            <h3>{auction.name}</h3>
-            <h3>{auction.creator ? auction.creator.username : 'Unknown Creator'}</h3>
-            <p>{auction.description}</p>
-            <p>Start Time: {new Date(auction.startAuction).toLocaleString()}</p>
-            <p>End Time: {new Date(auction.endAuction).toLocaleString()}</p>
+      {/* Modal for placing a bid */}
+      {showModal && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Place a Bid for {selectedAuction.name}</h2>
 
-            {/* Bid Form */}
-            <div className="bid-form">
-              <h4>Place a Bid</h4>
-              <input
-                type="text"
-                placeholder="Item Name"
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)} // Update item name state
-              />
-              <textarea
-                placeholder="Item Description"
-                value={itemDescription}
-                onChange={(e) => setItemDescription(e.target.value)} // Update item description state
-              ></textarea>
-              <button onClick={() => handleBid(auction._id)}>Place Bid</button>
-              {bidMessage && <p>{bidMessage}</p>}
-            </div>
+            <label htmlFor="itemName">Item Name</label>
+            <input
+              type="text"
+              id="itemName"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              required
+            />
 
-            {/* Display Bids */}
-            {auction.bids && auction.bids.length > 0 && (
-              <div className="bids">
-                <h4>Current Bids</h4>
-                {auction.bids.map((bid) => (
-                  <div key={bid._id} className="bid">
-                    <p><strong>Bidder:</strong> {bid.bidder ? bid.bidder.username : 'Unknown Bidder'}</p>
-                    <p><strong>Item Name:</strong> {bid.itemName}</p>
-                    <p><strong>Item Description:</strong> {bid.itemDescription}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <label htmlFor="itemDescription">Item Description</label>
+            <textarea
+              id="itemDescription"
+              value={itemDescription}
+              onChange={(e) => setItemDescription(e.target.value)}
+              required
+            ></textarea>
+
+            <label htmlFor="itemImage">Item Image</label>
+            <input type="file" id="itemImage" onChange={handleImageChange} />
+
+            <button className="primary-button" onClick={handleBidSubmit}>Submit Bid</button>
+            <button className="secondary-button" onClick={handleCloseModal}>Close</button>
+
+            {bidMessage && <p>{bidMessage}</p>}
           </div>
-        ))
-      ) : (
-        <p>No active auctions available.</p>
+        </div>
       )}
 
+      {/* Updated CSS with button and component enhancements */}
       <style jsx>{`
-        .container {
-          max-width: 800px;
-          margin: 2rem auto;
-          margin-top: 80px;
+        .dashboard-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          margin-top: 150px;
+          padding: 20px;
+          
+        }
+        .title{
+        font-size:3rem;
+        margin-button: 2rem;
+        }
+        .grid-container {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 1.5rem;
           padding: 1rem;
-          border: 1px solid #ddd;
-          border-radius: 5px;
-          background-color: #f0f4ff; /* Replace with your navbar background color */
+          border: none;
+        }
+
+        .grid-item {
+          background-color: #fff;
+          border-radius: 8px;
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          padding: 20px;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          position: relative;
         }
-        .search-bar {
+
+        .grid-item:hover {
+          transform: translateY(-10px);
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .auction-title {
+          font-size: 1.6rem;
+          margin-bottom: 10px;
+          color: #007bff;
+          font-weight: bold;
+        }
+
+        .auction-description {
+          font-size: 1rem;
+          color: #666;
+          margin-bottom: 10px;
+        }
+
+        .auction-image {
+          width: 100%;
+          height: auto;
+          border-radius: 4px;
           margin-bottom: 1rem;
-          text-align: center;
         }
-        .search-input {
-          padding: 0.5rem;
-          border: 1px solid #ccc;
+
+        .primary-button {
+          padding: 10px 20px;
+          background-color: #28a745;
+          color: #fff;
+          border: none;
           border-radius: 4px;
-          width: 100%;
-          max-width: 400px;
+          cursor: pointer;
+          font-weight: bold;
+          text-transform: uppercase;
+          transition: background-color 0.3s ease;
         }
-        .auction {
-          margin-bottom: 2rem;
-          padding: 1rem;
-          border: 1px solid #ddd;
+
+        .primary-button:hover {
+          background-color: #218838;
+        }
+
+        .secondary-button {
+          padding: 10px 20px;
+          background-color: #dc3545;
+          color: #fff;
+          border: none;
           border-radius: 4px;
-          background: #ffffff; /* Replace with your auction card background color */
+          cursor: pointer;
+          font-weight: bold;
+          text-transform: uppercase;
+          margin-left: 10px;
+          transition: background-color 0.3s ease;
         }
-        .bid-form {
-          margin-top: 1rem;
-          padding: 1rem;
-          background: #e6f7ff; /* Replace with your bid form background color */
-          border: 1px solid #ccc;
+
+        .secondary-button:hover {
+          background-color: #c82333;
+        }
+
+        .bids-section {
+          margin-top: 20px;
+          padding: 10px;
+          background-color: #f8f9fa;
           border-radius: 4px;
+          border: 1px solid #dee2e6;
         }
-        .bid-form input,
-        .bid-form textarea {
-          display: block;
-          width: 100%;
-          padding: 0.5rem;
-          margin-bottom: 0.5rem;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-        }
-        .bids {
-          margin-top: 1rem;
-          padding: 1rem;
-          background: #ffe; /* Replace with your bids background color */
-          border: 1px solid #ccc;
-          border-radius: 4px;
-        }
+
         .bid {
-          padding: 0.5rem 0;
-          border-bottom: 1px solid #ddd;
+          padding: 10px 0;
+          border-bottom: 1px solid #ccc;
         }
+
         .bid:last-child {
           border-bottom: none;
         }
-        button {
-          background-color: #0070f3; /* Replace with your button color */
-          color: white;
-          border: none;
-          padding: 0.5rem 1rem;
-          cursor: pointer;
+
+        .bid-image {
+          max-width: 200px;
+          height: auto;
+          display: block;
+          margin-top: 10px;
           border-radius: 4px;
-          transition: background-color 0.3s;
         }
-        button:hover {
-          background-color: #005bb5; /* Replace with your button hover color */
+
+        .modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .modal-content {
+          background-color: white;
+          padding: 20px;
+          border-radius: 8px;
+          width: 400px;
+          max-width: 100%;
+        }
+
+        .modal-content h2 {
+          margin-top: 0;
+          color: #007bff;
+        }
+
+        .modal-content input,
+        .modal-content textarea {
+          width: 100%;
+          padding: 10px;
+          margin-bottom: 10px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+        }
+
+        .modal-content button {
+          margin-top: 10px;
+        }
+
+        .modal-content button:first-of-type {
+          margin-right: 10px;
         }
       `}</style>
     </div>

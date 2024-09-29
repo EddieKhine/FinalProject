@@ -7,20 +7,19 @@ const CreateAuction = () => {
     description: '',
     startAuction: '',
     endAuction: '',
+    image: null,
   });
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [showModal, setShowModal] = useState(false); // State to manage modal visibility
+  const [newAuctionData, setNewAuctionData] = useState(null); // Store newly created auction data
   const router = useRouter();
 
-  // Retrieve user data from local storage
   const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user')) : null;
   const userId = user ? user.id : null;
 
   useEffect(() => {
-    // Redirect to login if user ID is not available
     if (!userId) {
-      router.push('/login');
+      router.push('/');
     }
   }, [userId, router]);
 
@@ -29,10 +28,13 @@ const CreateAuction = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleImageChange = (e) => {
+    setFormData({ ...formData, image: e.target.files[0] });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate the form data
     if (!formData.name || !formData.description || !formData.startAuction || !formData.endAuction) {
       setErrorMessage('Please fill in all fields.');
       return;
@@ -43,29 +45,35 @@ const CreateAuction = () => {
       return;
     }
 
-    setErrorMessage(''); // Clear any existing error messages
+    setErrorMessage('');
 
     try {
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('description', formData.description);
+      data.append('startAuction', formData.startAuction);
+      data.append('endAuction', formData.endAuction);
+      data.append('creator', userId);
+      if (formData.image) {
+        data.append('image', formData.image);
+      }
+
       const response = await fetch('/api/create-auction', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          creator: userId, // Use user ID from local storage
-        }),
+        body: data,
       });
 
       if (response.ok) {
+        const auctionData = await response.json(); // Get auction data from the response
         setSuccessMessage('Auction created successfully!');
-        setShowModal(true); // Show the modal on successful creation
+        setNewAuctionData(auctionData.auction); // Store new auction data
         setFormData({
           name: '',
           description: '',
           startAuction: '',
           endAuction: '',
-        }); // Clear form data
+          image: null,
+        });
       } else {
         const data = await response.json();
         setErrorMessage(data.message || 'Error creating auction.');
@@ -76,16 +84,13 @@ const CreateAuction = () => {
     }
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false); // Close the modal
-  };
-
   return (
     <div className="container">
       <h2>Create New Auction</h2>
       {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
       {successMessage && <p style={{ color: 'green' }}>{successMessage}</p>}
       <form onSubmit={handleSubmit}>
+        {/* Form Inputs */}
         <div className="form-group">
           <label htmlFor="name">Auction Name</label>
           <input
@@ -129,113 +134,97 @@ const CreateAuction = () => {
             required
           />
         </div>
+        <div className="form-group">
+          <label htmlFor="image">Auction Image</label>
+          <input type="file" id="image" name="image" onChange={handleImageChange} />
+        </div>
         <button type="submit">Create Auction</button>
       </form>
 
-      {/* Modal for success message */}
-      {showModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <span className="close" onClick={handleCloseModal}>&times;</span>
-            <h3>You have successfully created an auction!</h3>
-            <div className="modal-buttons">
-              <button className="green-button" onClick={() => router.push('/dashboard')}>Go to Dashboard</button>
-              <button className="green-button" onClick={() => router.push('/view-my-auction')}>View My Auction</button>
-            </div>
-          </div>
+      {/* Success Popup Card */}
+      {newAuctionData && (
+        <div className="popup-card">
+          <h3>Congratulations! You have created a new auction!</h3>
+          <p><strong>Auction Name:</strong> {newAuctionData.name}</p>
+          <p><strong>Description:</strong> {newAuctionData.description}</p>
+          <p><strong>Start Time:</strong> {newAuctionData.startAuction}</p>
+          <p><strong>End Time:</strong> {newAuctionData.endAuction}</p>
+          <button onClick={() => router.push('/dashboard')}>Go to Home Page</button>
+          <button onClick={() => router.push('/view-my-auctions')}>View My Auctions</button>
         </div>
       )}
 
       <style jsx>{`
         .container {
           max-width: 600px;
-          margin: 2rem auto;
-          padding: 1rem;
-          margin-top: 80px;
-          border: 1px solid #ccc;
-          border-radius: 5px;
-          background-color: #fff;
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        .form-group {
-          margin-bottom: 1rem;
-        }
-        label {
-          display: block;
-          font-weight: bold;
-          margin-bottom: 0.5rem;
-        }
-        input,
-        textarea {
-          width: 100%;
-          padding: 0.5rem;
-          border: 1px solid #ccc;
-          border-radius: 4px;
-        }
-        textarea {
-          resize: vertical; /* Allow vertical resizing */
-        }
-        button {
-          background-color: #0070f3;
-          color: white;
-          border: none;
-          padding: 0.5rem 1rem;
-          cursor: pointer;
-          border-radius: 4px;
-          margin-top: 10px;
-          transition: background-color 0.3s;
-        }
-        button:hover {
-          background-color: #005bb5;
+          margin: 0 auto;
+          margin-top: 100px;
+          padding: 20px;
+          background-color: #f9f9f9;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
-        /* Modal styles */
-        .modal {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          position: fixed;
-          z-index: 1;
-          left: 0;
-          top: 0;
-          width: 100%;
-          height: 100%;
-          overflow: auto;
-          background-color: rgba(0, 0, 0, 0.5);
-        }
-        .modal-content {
-          background-color: #fff;
-          padding: 20px;
-          width: 500px; /* Adjust the size of the modal to match landing page */
-          border-radius: 10px;
+        h2 {
           text-align: center;
-          position: relative;
+          color: #333;
         }
-        .close {
-          position: absolute;
-          top: 10px;
-          right: 20px;
-          font-size: 24px;
-          cursor: pointer;
+
+        .form-group {
+          margin-bottom: 15px;
         }
-        h3 {
-          font-size: 1.5rem; /* Increase text size */
+
+        .form-group label {
+          display: block;
+          font-weight: bold;
+          margin-bottom: 5px;
+          color: #333;
         }
-        .modal-buttons {
-          margin-top: 20px;
+
+        .form-group input,
+        .form-group textarea {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
         }
-        .green-button {
+
+        .form-group input[type="file"] {
+          padding: 5px;
+        }
+
+        button[type="submit"] {
+          width: 100%;
+          padding: 12px;
           background-color: #16a34a; /* Green-600 */
           color: white;
           border: none;
-          padding: 0.5rem 1rem;
-          cursor: pointer;
           border-radius: 4px;
-          margin: 5px;
-          font-size: 1rem; /* Increase button text size */
+          cursor: pointer;
+          margin-top: 10px; /* Add margin to separate from the form */
         }
-        .green-button:hover {
-          background-color: #15803d; /* Darker green on hover */
+
+        .popup-card {
+          background-color: black;
+          color: white;
+          padding: 20px;
+          border-radius: 8px;
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          text-align: center;
+          z-index: 1000;
+        }
+
+        .popup-card button {
+          margin: 10px;
+          padding: 10px;
+          border: none;
+          background-color: #16a34a; /* Green-600 */
+          color: white;
+          border-radius: 4px;
+          cursor: pointer;
         }
       `}</style>
     </div>

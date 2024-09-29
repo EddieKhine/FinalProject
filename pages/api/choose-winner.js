@@ -20,7 +20,6 @@ export default async function handler(req, res) {
   try {
     // Find the auction and update it with the winning bid
     const auction = await Auction.findById(auctionId);
-
     if (!auction) {
       return res.status(404).json({ message: 'Auction not found' });
     }
@@ -30,8 +29,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'Auction is already inactive' });
     }
 
+    // Fetch the winning bid details
+    const winningBid = await Bid.findById(bidId).populate('bidder', 'username');
+    if (!winningBid) {
+      return res.status(404).json({ message: 'Bid not found' });
+    }
+
     // Update the auction with the winning bid and set it to inactive
-    auction.winner = bidId;
+    auction.winner = winningBid; // Store the full winning bid
     auction.isActive = false;
     await auction.save();
 

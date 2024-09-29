@@ -22,6 +22,10 @@ const auctionSchema = new mongoose.Schema({
     type: Date,
     required: true,
   },
+  imagePath: {
+    type: String, // Store the file path of the auction image
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

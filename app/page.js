@@ -127,21 +127,7 @@ const LandingPage = () => {
           </form>
         </div>
         <div className="flex space-x-4">
-          {username ? (
-            <>
-              <span className="text-white">Welcome, {username}</span>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('user'); // Clear user data from local storage
-                  setUsername(''); // Reset the state
-                  router.push('/'); // Redirect to home page
-                }}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
+          {  (
             <>
               <button
                 onClick={() => setIsLoginModalOpen(true)}
@@ -173,6 +159,14 @@ const LandingPage = () => {
                 <li key={auction._id} className="border p-4 rounded-lg shadow-md">
                   <h3 className="text-xl font-bold">{auction.name}</h3>
                   <p>{auction.description}</p>
+                   {/* Display the auction image if it exists */}
+                    {auction.imagePath && (
+                      <img
+                        src={auction.imagePath}
+                        alt={auction.name}
+                        style={{ width: '200px', height: 'auto', objectFit: 'cover' }}
+                      />
+                    )}
                   <p>
                     <strong>Start:</strong> {new Date(auction.startAuction).toLocaleString()}
                   </p>
@@ -190,7 +184,15 @@ const LandingPage = () => {
                             <p><strong>Bidder:</strong> {bid.bidder ? bid.bidder.username : 'Unknown Bidder'}</p>
                             <p><strong>Item Name:</strong> {bid.itemName}</p>
                             <p><strong>Item Description:</strong> {bid.itemDescription}</p>
+                            {bid.itemImage && (
+                              <img 
+                                src={bid.itemImage.startsWith('/uploads') ? bid.itemImage : `/uploads/bids/${bid.itemImage}`} 
+                                alt={bid.itemName} 
+                                style={{ width: '200px', height: 'auto' }} 
+                              />
+                          )}
                           </li>
+                          
                         ))}
                       </ul>
                     </div>

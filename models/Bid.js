@@ -10,7 +10,7 @@ const bidSchema = new mongoose.Schema({
   bidder: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true, // Ensure that bidder is required
+    required: true,
   },
   itemName: {
     type: String,
@@ -19,6 +19,10 @@ const bidSchema = new mongoose.Schema({
   itemDescription: {
     type: String,
     required: true,
+  },
+  itemImage: {
+    type: String, // Field for the item image path
+    default: null,
   },
   createdAt: {
     type: Date,

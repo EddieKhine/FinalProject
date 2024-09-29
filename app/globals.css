@@ -16,7 +16,7 @@
 
 /* global.css */
 body {
-  background: linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%);/* Light purple background color */
+  background: white;
   color: #4a148c; /* Dark purple text color */
   font-family: Arial, sans-serif; /* Optional: Set a default font */
   margin: 0; /* Remove default margin */

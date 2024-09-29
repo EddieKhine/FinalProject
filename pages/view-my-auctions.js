@@ -14,7 +14,7 @@ const MyAuctions = () => {
 
   useEffect(() => {
     if (!userId) {
-      router.push('/login'); // Redirect to login if not authenticated
+      router.push('/'); // Redirect to login if not authenticated
     } else {
       fetchMyAuctions(); // Fetch user's auctions when userId is available
     }
@@ -52,11 +52,11 @@ const MyAuctions = () => {
   const handleUpdate = async (auctionId) => {
     try {
       const response = await fetch(`/api/update-auction/${auctionId}`, {
-        method: 'PUT',
+        method: 'POST', // Use POST method for updating
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(editableData), // Use the editableData state for updating
+        body: JSON.stringify(editableData), // Send updated auction data without image field
       });
 
       if (response.ok) {
@@ -124,7 +124,7 @@ const MyAuctions = () => {
       {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
       {auctions.length > 0 ? (
         auctions.map((auction) => (
-          <div key={auction._id} className="auction"> {/* Ensure this key is unique */}
+          <div key={auction._id} className="auction">
             {editAuctionId === auction._id ? (
               <div>
                 <input
@@ -159,11 +159,21 @@ const MyAuctions = () => {
               <div>
                 <h3>{auction.name}</h3>
                 <p>{auction.description}</p>
+                {/* Display the auction image if it exists */}
+                {auction.imagePath && (
+                  <img
+                    src={auction.imagePath}
+                    alt={auction.name}
+                    style={{ width: '200px', height: 'auto', objectFit: 'cover' }}
+                  />
+                )}
                 <p>Start Time: {new Date(auction.startAuction).toLocaleString()}</p>
                 <p>End Time: {new Date(auction.endAuction).toLocaleString()}</p>
                 <p>Status: {auction.isActive ? 'Active' : 'Inactive'}</p> {/* Show auction status */}
 
-                <button onClick={() => handleEdit(auction)} disabled={!auction.isActive}>Edit</button>
+                <button onClick={() => handleEdit(auction)} disabled={!auction.isActive}>
+                  Edit
+                </button>
                 <button onClick={() => handleDelete(auction._id)} style={{ marginLeft: '10px' }}>
                   Delete
                 </button>
@@ -172,10 +182,17 @@ const MyAuctions = () => {
                   <div className="bids">
                     <h4>Bids</h4>
                     {auction.bids.map((bid) => (
-                      <div key={bid._id} className="bid"> {/* Ensure this key is unique */}
-                        <p><strong>Bidder:</strong> {bid.bidder ? bid.bidder.username : 'Unknown Bidder'}</p> {/* Show bidder username */}
+                      <div key={bid._id} className="bid">
+                        <p><strong>Bidder:</strong> {bid.bidder ? bid.bidder.username : 'Unknown Bidder'}</p>
                         <p><strong>Item Name:</strong> {bid.itemName}</p>
                         <p><strong>Item Description:</strong> {bid.itemDescription}</p>
+                        {bid.itemImage && (
+                          <img 
+                            src={bid.itemImage.startsWith('/uploads') ? bid.itemImage : `/uploads/bids/${bid.itemImage}`} 
+                            alt={bid.itemName} 
+                            style={{ width: '200px', height: 'auto' }} 
+                          />
+                        )}
                         <button onClick={() => chooseWinner(auction._id, bid._id)} disabled={!auction.isActive}>Choose as Winner</button>
                       </div>
                     ))}
@@ -188,6 +205,13 @@ const MyAuctions = () => {
                     <p><strong>Bidder:</strong> {auction.winner.bidder ? auction.winner.bidder.username : 'Unknown Bidder'}</p>
                     <p><strong>Item Name:</strong> {auction.winner.itemName || 'N/A'}</p>
                     <p><strong>Item Description:</strong> {auction.winner.itemDescription || 'N/A'}</p>
+                    {auction.winner.itemImage && (
+                      <img
+                        src={auction.winner.itemImage.startsWith('/uploads') ? auction.winner.itemImage : `/uploads/bids/${auction.winner.itemImage}`}
+                        alt={auction.winner.itemName}
+                        style={{ width: '200px', height: 'auto' }}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -207,6 +231,7 @@ const MyAuctions = () => {
           border-radius: 5px;
           background-color: #fff;
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          border: none;
         }
         .auction {
           padding: 1rem;

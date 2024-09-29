@@ -1,47 +1,84 @@
+import { IncomingForm } from 'formidable'; // Correct import
+import fs from 'fs';
+import path from 'path';
 import dbConnect from '../../lib/db';
-import Auction from '../../models/Auction';
-import Bid from '../../models/Bid';
+import User from '../../models/User';
+import bcrypt from 'bcryptjs';
+
+export const config = {
+  api: {
+    bodyParser: false, // Disable Next.js default body parser
+  },
+};
 
 export default async function handler(req, res) {
-  await dbConnect(); // Connect to the database
+  await dbConnect();
 
   if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  const { auctionId, bidderId, itemName, itemDescription } = req.body;
-
-  // Validate the input
-  if (!auctionId || !bidderId || !itemName || !itemDescription) {
-    return res.status(400).json({ message: 'Please provide all required fields.' });
-  }
-
+  // Ensure the upload directory exists
+  const profileUploadDir = path.join(process.cwd(), '/public/uploads/profiles');
   try {
-    // Ensure the auctionId and bidderId are valid ObjectIds
-    if (!mongoose.Types.ObjectId.isValid(auctionId) || !mongoose.Types.ObjectId.isValid(bidderId)) {
-      return res.status(400).json({ message: 'Invalid ID format' });
+    if (!fs.existsSync(profileUploadDir)) {
+      console.log('Creating upload directory...');
+      fs.mkdirSync(profileUploadDir, { recursive: true });
+      console.log('Directory created.');
+    } else {
+      console.log('Upload directory exists.');
+    }
+  } catch (err) {
+    console.error('Error creating upload directory:', err);
+    return res.status(500).json({ message: 'Failed to create upload directory' });
+  }
+
+  const form = new IncomingForm({
+    uploadDir: profileUploadDir, // Set upload directory
+    keepExtensions: true, // Keep file extensions
+    maxFileSize: 5 * 1024 * 1024, // Limit file size to 5MB
+  });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      console.error('Error parsing form data:', err);
+      return res.status(500).json({ message: 'Error parsing form data' });
     }
 
-    // Create a new bid document
-    const newBid = new Bid({
-      auction: auctionId,
-      bidder: bidderId,
-      itemName,
-      itemDescription,
-      createdAt: new Date(),
-    });
+    console.log('Parsed fields:', fields);
+    console.log('Parsed files:', files);
 
-    await newBid.save();
+    const { username, email, password } = fields;
+    const profilePicture = files.profilePicture;
 
-    // Add the bid to the auction's bids array
-    await Auction.findByIdAndUpdate(auctionId, {
-      $push: { bids: newBid._id },
-    });
+    if (!email || !username) {
+      return res.status(400).json({ message: 'Email and username are required' });
+    }
 
-    res.status(201).json({ message: 'Bid added successfully', bid: newBid });
-  } catch (error) {
-    console.error('Error adding bid:', error.message);
-    res.status(500).json({ message: 'Error adding bid', error: error.message });
-  }
+    try {
+      const updateData = { username };
+
+      if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        updateData.password = hashedPassword;
+      }
+
+      if (profilePicture) {
+        const profilePicturePath = `/uploads/profiles/${profilePicture.newFilename}`;
+        updateData.profilePicture = profilePicturePath;
+        console.log('Profile picture path:', profilePicturePath);
+      }
+
+      const user = await User.findOneAndUpdate({ email }, updateData, { new: true });
+
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      return res.status(200).json({ message: 'Profile updated successfully', user });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return res.status(500).json({ message: 'Error updating user' });
+    }
+  });
 }

@@ -17,6 +17,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  profilePicture: {
+    type: String, // URL or path to the profile picture
+    default: null,
+  },
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);
